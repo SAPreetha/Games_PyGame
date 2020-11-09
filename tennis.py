@@ -2,19 +2,24 @@ import pygame
 import socket
 import json
 import threading
+import queue
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 HOST = "192.168.0.101"
-PORT = 12346
+PORT = 12345
 pygame.init()
 
-def sock_recv(cl):
+def sock_recv(cl,q):
     while True:
-        R_data = cl.recv(10)
+        try:
+            R_data = cl.recv(10)
+            R_data = R_data.decode("utf-8")
+            R_data = json.loads(R_data)
+            q.put(R_data)
+        except:
+            continue
 
-        # R_data = json.loads(R_data.decode())
-        print(R_data.decode())
-
+q=queue.Queue()
 
 # drawing window
 screen = pygame.display.set_mode([500, 500])
@@ -26,11 +31,12 @@ client, addr = sock.accept()
 
 #parallely run listening to connected client
 
-t=threading.Thread(target = sock_recv, args = (client,))
+t=threading.Thread(target = sock_recv, args = (client, q))
 t.start()
 
 # original center
-center = (250,250)
+center = (250, 250)
+center2 = (100, 100)
 # Run until change in True condition
 running = True
 while running:
@@ -47,14 +53,19 @@ while running:
         if event.type==pygame.MOUSEMOTION:
             if pygame.mouse.get_pressed() == (1,0,0):
                 center = pygame.mouse.get_pos()
+                S_data = json.dumps(center)
+                client.send(bytes(S_data, encoding = "utf-8"))
 
 
     # background : white
     screen.fill((255, 255, 255))
 
     # colored circle the center
-    pygame.draw.circle(screen, (255, 0, 0), center, 15)
-    pygame.draw.circle(screen, (255, 255, 0), (100, 100), 15)
+    if not q.empty():
+        center2 = q.get()
+        # print(center2.type())
+    pygame.draw.circle(screen, (255, 0, 0), center, 10)
+    pygame.draw.circle(screen, (255, 255, 0), center2, 10)
 
     # boundary
     pygame.draw.rect(screen,(255, 255, 0), (0, 490, 500, 500))
@@ -68,3 +79,4 @@ while running:
 # Done! Time to quit.
 pygame.quit()
 t.join()
+sock.close()
